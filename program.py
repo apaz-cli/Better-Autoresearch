@@ -8,6 +8,7 @@ Usage:
     uv run program.py
 """
 
+import difflib
 import os
 import re
 import subprocess
@@ -163,6 +164,26 @@ Think it through, then end your response with either KEEP or DISCARD."""}], use_
     return text.strip().upper().endswith("KEEP")
 
 
+def print_diff(old: str, new: str, label: str = "train.py"):
+    diff = list(difflib.unified_diff(
+        old.splitlines(keepends=True),
+        new.splitlines(keepends=True),
+        fromfile=f"a/{label}", tofile=f"b/{label}",
+    ))
+    if not diff:
+        print("\033[33m(no changes)\033[0m")
+        return
+    for line in diff:
+        if line.startswith("@@"):
+            print(f"\033[36m{line}\033[0m", end="")
+        elif line.startswith("+"):
+            print(f"\033[32m{line}\033[0m", end="")
+        elif line.startswith("-"):
+            print(f"\033[31m{line}\033[0m", end="")
+        else:
+            print(line, end="")
+
+
 def commit_message(idea):
     return ask([{"role": "user", "content": f"One-line git commit message for this ML experiment (no quotes):\n{idea}"}], model=HAIKU, use_system=False)
 
@@ -242,6 +263,7 @@ def run_experiment(baseline, description) -> tuple[float, float] | None:
             print_log("[crash] Asking LLM to diagnose...")
             fixed_train, giveup_reason = diagnose_crash(Path("train.py").read_text(), log)
             if fixed_train:
+                print_diff(Path("train.py").read_text(), fixed_train)
                 fix_desc = commit_message(f"Fix crash in: {description}")
                 print_log(f"[crash] {fix_desc}")
                 Path("train.py").write_text(fixed_train)
@@ -302,6 +324,7 @@ def main():
         if not new_train_py:
             print_log("[implement] No train.py returned. Retrying.")
             continue
+        print_diff(train_py, new_train_py)
 
         # Write the file and make a git commit
         description = commit_message(idea)
