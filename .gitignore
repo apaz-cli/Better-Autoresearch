@@ -21,4 +21,4 @@ dev/
 
 # Results file
 results.tsv
-program.log
+*.log
