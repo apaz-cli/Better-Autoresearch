@@ -83,7 +83,8 @@ def ask(messages, model=OPUS, strip_code=False, use_system=True, max_tokens=6553
     kwargs = dict(model=model, max_tokens=max_tokens, messages=messages)
     if use_system:
         kwargs["system"] = SYSTEM_PROMPT
-    text = client.messages.create(**kwargs).content[0].text
+    with client.messages.stream(**kwargs) as stream:
+        text = stream.get_final_text()
     if strip_code:
         text = re.sub(r"^```\w*\n?", "", text.strip())
         text = re.sub(r"\n?```\s*$", "", text).strip()
