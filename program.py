@@ -79,8 +79,8 @@ def best_kept_bpb():
 
 client = anthropic.Anthropic()
 
-def ask(messages, model=OPUS, strip_code=False, use_system=True):
-    kwargs = dict(model=model, max_tokens=8192, messages=messages)
+def ask(messages, model=OPUS, strip_code=False, use_system=True, max_tokens=65536):
+    kwargs = dict(model=model, max_tokens=max_tokens, messages=messages)
     if use_system:
         kwargs["system"] = SYSTEM_PROMPT
     text = client.messages.create(**kwargs).content[0].text
@@ -125,14 +125,23 @@ Reply with only the complete modified train.py, no explanation. \
 It is very important that you only respond with train.py, as it will be written directly to a file."""}], strip_code=True, use_system=True)
 
 
-def diagnose_crash(train_py, log) -> tuple[str | None, None | str]:
+def diagnose_crash(original_train_py, crashed_train_py, log) -> tuple[str | None, None | str]:
     """Returns fixed train.py string and None, Otherwise returns None and the reason it gave up."""
+    diff_lines = list(difflib.unified_diff(
+        original_train_py.splitlines(keepends=True),
+        crashed_train_py.splitlines(keepends=True),
+        fromfile="a/train.py", tofile="b/train.py",
+    ))
+    diff_str = "".join(diff_lines) if diff_lines else "(no changes from original)"
     text = ask([{"role": "user", "content": f"""\
 The training run crashed. Log:
 {log}
 
-train.py that crashed:
-{train_py}
+Diff introduced by this experiment (original → crashed train.py):
+{diff_str}
+
+Full crashed train.py:
+{crashed_train_py}
 
 If this is a simple fixable bug, reply with only the complete fixed train.py.
 If the idea is fundamentally broken (OOM with no easy fix, etc.), reply with: GIVE_UP: <reason>"""}], strip_code=True, use_system=True)
@@ -241,7 +250,7 @@ def run_training() -> tuple[str, bool]:
     except subprocess.TimeoutExpired as e:
         return (e.stdout or "") + "\n[TIMEOUT]", False
 
-def run_experiment(baseline, description) -> tuple[float, float] | None:
+def run_experiment(baseline, original_train_py, description) -> tuple[float, float] | None:
     """Run training with crash-fix retries. Returns (val_bpb, memory_gb) or None on give-up."""
     for attempt in range(1 + MAX_CRASH_FIXES):
         print_log(f"[train] Running... (attempt {attempt + 1}/{1 + MAX_CRASH_FIXES})")
@@ -261,9 +270,10 @@ def run_experiment(baseline, description) -> tuple[float, float] | None:
             print_log("[crash] Max fix attempts reached. Giving up.")
         else:
             print_log("[crash] Asking LLM to diagnose...")
-            fixed_train, giveup_reason = diagnose_crash(Path("train.py").read_text(), log)
+            crashed_train_py = Path("train.py").read_text()
+            fixed_train, giveup_reason = diagnose_crash(original_train_py, crashed_train_py, log)
             if fixed_train:
-                print_diff(Path("train.py").read_text(), fixed_train)
+                print_diff(crashed_train_py, fixed_train)
                 fix_desc = commit_message(f"Fix crash in: {description}")
                 print_log(f"[crash] {fix_desc}")
                 Path("train.py").write_text(fixed_train)
@@ -335,7 +345,7 @@ def main():
         commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
 
         # Run the commit, get results or log crash
-        result = run_experiment(baseline, description)
+        result = run_experiment(baseline, train_py, description)
         if result is None:
             log_result(commit, 0.0, 0.0, "crash", description)
             continue
