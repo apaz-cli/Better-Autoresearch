@@ -120,7 +120,8 @@ Implement this change to train.py:
 Current train.py:
 {train_py}
 
-Reply with only the complete modified train.py, no explanation."""}], strip_code=True, use_system=True)
+Reply with only the complete modified train.py, no explanation. \
+It is very important that you only respond with train.py, as it will be written directly to a file."""}], strip_code=True, use_system=True)
 
 
 def diagnose_crash(train_py, log) -> tuple[str | None, None | str]:
