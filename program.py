@@ -79,7 +79,7 @@ def best_kept_bpb():
 
 client = anthropic.Anthropic()
 
-def ask(messages, model=OPUS, strip_code=False, use_system=True, max_tokens=65536):
+def ask(messages, model=OPUS, strip_code=False, use_system=True, max_tokens=64000):
     kwargs = dict(model=model, max_tokens=max_tokens, messages=messages)
     if use_system:
         kwargs["system"] = SYSTEM_PROMPT
