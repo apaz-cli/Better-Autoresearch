@@ -79,14 +79,13 @@ def best_kept_bpb():
 
 client = anthropic.Anthropic()
 
-THINKING_BUDGET = 16000
-
 def ask(messages, model=OPUS, strip_code=False, use_system=True, max_tokens=65536):
     kwargs = dict(model=model, max_tokens=max_tokens, messages=messages)
     if use_system:
         kwargs["system"] = SYSTEM_PROMPT
     if model != HAIKU:
-        kwargs["thinking"] = {"type": "enabled", "budget_tokens": THINKING_BUDGET}
+        kwargs["thinking"] = {"type": "adaptive"}
+        kwargs["output_config"] = {"effort": "medium"}
     with client.messages.stream(**kwargs) as stream:
         text = stream.get_final_text()
     if strip_code:
