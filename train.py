@@ -19,9 +19,13 @@ import torch.nn.functional as F
 
 from kernels import get_kernel
 cap = torch.cuda.get_device_capability()
-# varunneal's FA3 is Hopper only, use kernels-community on non-Hopper GPUs
-repo = "varunneal/flash-attention-3" if cap == (9, 0) else "kernels-community/flash-attn3"
-fa3 = get_kernel(repo).flash_attn_interface
+if cap >= (10, 0):
+    fa3 = get_kernel("kernels-community/flash-attn4")
+elif cap == (9, 0):
+    # varunneal's FA3 is Hopper only
+    fa3 = get_kernel("varunneal/flash-attention-3").flash_attn_interface
+else:
+    fa3 = get_kernel("kernels-community/flash-attn3").flash_attn_interface
 
 from prepare import MAX_SEQ_LEN, TIME_BUDGET, Tokenizer, make_dataloader, evaluate_bpb
 
@@ -91,6 +95,7 @@ class CausalSelfAttention(nn.Module):
         q, k = norm(q), norm(k)
 
         y = fa3.flash_attn_func(q, k, v, causal=True, window_size=window_size)
+        if isinstance(y, tuple): y = y[0]
         y = y.contiguous().view(B, T, -1)
         y = self.c_proj(y)
         return y
@@ -460,7 +465,10 @@ torch.cuda.manual_seed(42)
 torch.set_float32_matmul_precision("high")
 device = torch.device("cuda")
 autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16)
-H100_BF16_PEAK_FLOPS = 989.5e12
+_PEAK_FLOPS_BY_GPU = {"B300": 4500.0e12, "B200": 2250.0e12, "H200": 989.5e12, "H100": 989.5e12, "A100": 312.0e12}
+_gpu_name = torch.cuda.get_device_name(0)
+H100_BF16_PEAK_FLOPS = next((v for k, v in _PEAK_FLOPS_BY_GPU.items() if k in _gpu_name), 989.5e12)
+del _PEAK_FLOPS_BY_GPU, _gpu_name
 
 tokenizer = Tokenizer.from_directory()
 vocab_size = tokenizer.get_vocab_size()
