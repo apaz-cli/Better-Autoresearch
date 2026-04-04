@@ -70,6 +70,25 @@ def print_log(*args: object) -> None:
         f.write(msg + "\n")
 
 
+def _print_colored(msg: str, color: str) -> None:
+    print(f"{color}{msg}\033[0m")
+    with open(LOG_FILE, "a") as f:
+        f.write(msg + "\n")
+
+
+def _format_messages(messages: list[MessageParam]) -> str:
+    parts = []
+    for msg in messages:
+        content = msg["content"]
+        if isinstance(content, str):
+            parts.append(content)
+        elif isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    parts.append(block["text"])
+    return "\n\n".join(parts)
+
+
 def diff_log(old: str, new: str, label: str = "train.py") -> None:
     diff = list(difflib.unified_diff(
         old.splitlines(keepends=True),
@@ -197,6 +216,8 @@ def llm_call(messages: list[MessageParam], model: str, system: str | None = None
 
     All API calls are retried with exponential backoff on 5xx errors.
     """
+    _print_colored(f"\n[query]\n{_format_messages(messages)}", "\033[2m")
+
     kwargs: dict = dict(model=model, max_tokens=max_tokens, messages=list(messages))
     if system:
         kwargs["system"] = system
@@ -236,6 +257,7 @@ def llm_call(messages: list[MessageParam], model: str, system: str | None = None
                     continue
                 result = tool.handler(block)
                 if tool.terminal:
+                    _print_colored(f"[response]\n{result}", "\033[1m")
                     return result
                 print_log(f"[tool:{block.input.get('command', block.name)}] {result}")
                 tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": result})
@@ -255,7 +277,7 @@ def llm_call(messages: list[MessageParam], model: str, system: str | None = None
                 return stream.get_final_text()
         text = _with_backoff(_stream)
 
-    print_log(f"[{model}] {text}")
+    _print_colored(f"[response]\n{text}", "\033[1m")
     return text
 
 
@@ -430,10 +452,7 @@ A simplification that breaks even on val_bpb is worth keeping."""}],
         tools=[DECIDE_TOOL],
         tool_choice={"type": "tool", "name": "decide"},
     )
-    justification = result.get("justification", "")
-    decision = result["decision"]
-    print_log(f"[judge] {justification}")
-    return decision == "keep"
+    return result["decision"] == "keep"
 
 
 def commit_message(idea: str, diff: str | None = None) -> str:
@@ -595,7 +614,6 @@ def main() -> None:
         # Propose an idea
         print_log("\n[propose] Thinking about what to try...")
         idea = propose_idea(train_py, results)
-        print_log(f"[propose] {idea}")
 
         # Implement the idea
         print_log("[implement] Writing code...")
