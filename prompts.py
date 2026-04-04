@@ -3,8 +3,13 @@ import difflib
 import re
 from typing import Any
 
-from config import HAIKU, MAX_AGENT_TURNS, OPUS, QUICK_MAX_TOKENS
-from models import DECIDE_TOOL, EDIT_TOOL, Message, Tool, llm_call
+import config
+from models import (
+    DECIDE_TOOL, EDIT_TOOL,
+    Message, ModelConfig, Tool,
+    llm_call,
+    PROPOSE_IDEA_CONFIG, IMPLEMENT_IDEA_CONFIG, DIAGNOSE_CRASH_CONFIG, SHOULD_KEEP_CONFIG, COMMIT_MESSAGE_CONFIG,
+)
 
 SYSTEM_PROMPT = """\
 You may NOT add new package dependencies beyond what's in pyproject.toml.
@@ -19,19 +24,16 @@ below 80 GB.\
 """
 
 
-def ask(messages: list[Message], tools: list[Tool] | None = None, tool_choice: dict | None = None) -> Any:
-    """Opus call with extended thinking and the research system prompt."""
-    return llm_call(messages, model=OPUS, system=SYSTEM_PROMPT, tools=tools, tool_choice=tool_choice, max_agent_turns=MAX_AGENT_TURNS)
+def ask(messages: list[Message], model: ModelConfig, tools: list[Tool] | None = None, tool_choice: dict | None = None) -> Any:
+    return llm_call(messages, model=model, system=SYSTEM_PROMPT, tools=tools, tool_choice=tool_choice, max_agent_turns=config.MAX_AGENT_TURNS)
 
 
-def quick(prompt: str) -> str:
-    """Haiku call for short-output tasks (commit messages, etc.). Returns str."""
-    return llm_call([{"role": "user", "content": prompt}], model=HAIKU, max_tokens=QUICK_MAX_TOKENS)
+def quick(prompt: str, model: ModelConfig) -> str:
+    return llm_call([{"role": "user", "content": prompt}], model=model, max_tokens=config.QUICK_MAX_TOKENS)
 
 
-def edit_train(messages: list[Message]) -> str:
-    """Opus agentic loop that edits train.py in place via str_replace_based_edit_tool."""
-    return llm_call(messages, model=OPUS, system=SYSTEM_PROMPT, tools=[copy.copy(EDIT_TOOL)], max_agent_turns=MAX_AGENT_TURNS)
+def edit_train(messages: list[Message], model: ModelConfig) -> str:
+    return llm_call(messages, model=model, system=SYSTEM_PROMPT, tools=[copy.copy(EDIT_TOOL)], max_agent_turns=config.MAX_AGENT_TURNS)
 
 
 def propose_idea(train_py: str, results: str) -> str:
@@ -61,7 +63,7 @@ Experiment history (TSV):
 
 Current train.py:
 {train_py}\
-"""}])
+"""}], model=PROPOSE_IDEA_CONFIG)
 
 
 def implement_idea(train_py: str, idea: str) -> None:
@@ -77,7 +79,7 @@ Use str_replace_based_edit_tool to make edits. The file path is train.py (not re
 
 Current train.py:
 {train_py}\
-"""}])
+"""}], model=IMPLEMENT_IDEA_CONFIG)
 
 
 def diagnose_crash(idea: str, original_train_py: str, crashed_train_py: str, log: str) -> str | None:
@@ -112,7 +114,7 @@ Full crashed train.py:
 If this is a simple fixable bug, use str_replace_based_edit_tool to fix train.py (file path is train.py, not repo/train.py).
 If the idea is fundamentally broken (OOM with no easy fix, etc.), do NOT use the tool \
 — just reply with GIVE_UP: <reason>\
-"""}])
+"""}], model=DIAGNOSE_CRASH_CONFIG)
     m = re.search(r"GIVE_UP\s*:\s*(.+)", text, re.IGNORECASE)
     return m.group(1).strip() if m else None
 
@@ -152,6 +154,7 @@ Should we keep this change? Weigh the val_bpb improvement against added complexi
 A small gain that adds ugly or fragile code is not worth keeping. \
 A simplification that breaks even on val_bpb is worth keeping.\
 """}],
+        model=SHOULD_KEEP_CONFIG,
         tools=[DECIDE_TOOL],
         tool_choice={"type": "tool", "name": "decide"},
     )
@@ -165,4 +168,4 @@ Need a one-line git commit message for this ML experiment. \
 Output just the message, no command or quotes.
 
 {ctx}\
-""")
+""", model=COMMIT_MESSAGE_CONFIG)

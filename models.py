@@ -7,7 +7,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, TypedDict
 
-from config import API_STYLE, BACKOFF_INITIAL, BACKOFF_MAX, BASE_URL, HAIKU, MAX_AGENT_TURNS, MAX_TOKENS
+from config import (
+    BACKOFF_INITIAL, BACKOFF_MAX, MAX_AGENT_TURNS, MAX_TOKENS,
+    PROPOSE_IDEA_MODEL,   PROPOSE_IDEA_STYLE,   PROPOSE_IDEA_BASE_URL,   PROPOSE_IDEA_API_KEY,
+    IMPLEMENT_IDEA_MODEL, IMPLEMENT_IDEA_STYLE, IMPLEMENT_IDEA_BASE_URL, IMPLEMENT_IDEA_API_KEY,
+    DIAGNOSE_CRASH_MODEL, DIAGNOSE_CRASH_STYLE, DIAGNOSE_CRASH_BASE_URL, DIAGNOSE_CRASH_API_KEY,
+    SHOULD_KEEP_MODEL,    SHOULD_KEEP_STYLE,    SHOULD_KEEP_BASE_URL,    SHOULD_KEEP_API_KEY,
+    COMMIT_MESSAGE_MODEL, COMMIT_MESSAGE_STYLE, COMMIT_MESSAGE_BASE_URL, COMMIT_MESSAGE_API_KEY,
+)
 from log import _format_messages, _print_colored, print_log
 
 
@@ -18,6 +25,15 @@ from log import _format_messages, _print_colored, print_log
 class Message(TypedDict):
     role: str
     content: str | list
+
+
+@dataclass
+class ModelConfig:
+    name: str
+    api_style: str       # "anthropic" or "openai"
+    base_url: str | None # None = provider default
+    api_key: str
+    thinking: bool = False
 
 
 @dataclass
@@ -61,15 +77,14 @@ def with_backoff(fn: Callable) -> Any:
                 raise
 
 
-def _call_anthropic(messages: list, model: str, system: str | None, tools: list[Tool] | None, tool_choice: dict | None, max_tokens: int) -> dict:
-    base = (BASE_URL or "https://api.anthropic.com").rstrip("/")
+def _call_anthropic(messages: list, model: ModelConfig, system: str | None, tools: list[Tool] | None, tool_choice: dict | None, max_tokens: int) -> dict:
+    base = (model.base_url or "https://api.anthropic.com").rstrip("/")
     url = base + "/v1/messages"
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
 
-    body: dict = {"model": model, "max_tokens": max_tokens, "messages": messages}
+    body: dict = {"model": model.name, "max_tokens": max_tokens, "messages": messages}
     if system:
         body["system"] = system
-    if model != HAIKU:
+    if model.thinking:
         body["thinking"] = {"type": "adaptive"}
         body["output_config"] = {"effort": "medium"}
     if tools:
@@ -79,7 +94,7 @@ def _call_anthropic(messages: list, model: str, system: str | None, tools: list[
 
     hdrs = {
         "Content-Type": "application/json",
-        "x-api-key": api_key,
+        "x-api-key": model.api_key,
         "anthropic-version": "2023-06-01",
     }
 
@@ -156,17 +171,17 @@ def _to_oai_tool_spec(tool: Tool) -> dict:
     }
 
 
-def _call_oai(messages: list, model: str, system: str | None, tools: list[Tool] | None, tool_choice: dict | None, max_tokens: int) -> dict:
-    base = (BASE_URL or "https://api.openai.com").rstrip("/")
+def _call_oai(messages: list, model: ModelConfig, system: str | None, tools: list[Tool] | None, tool_choice: dict | None, max_tokens: int) -> dict:
+    base = (model.base_url or "https://api.openai.com").rstrip("/")
     url = base + "/v1/chat/completions"
-    api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("API_KEY", "")
+    api_key = model.api_key
 
     oai_messages = []
     if system:
         oai_messages.append({"role": "system", "content": system})
     oai_messages.extend(_to_oai_messages(messages))
 
-    body: dict = {"model": model, "max_tokens": max_tokens, "messages": oai_messages}
+    body: dict = {"model": model.name, "max_tokens": max_tokens, "messages": oai_messages}
     if tools:
         body["tools"] = [_to_oai_tool_spec(t) for t in tools]
         if tool_choice:
@@ -199,7 +214,7 @@ def _call_oai(messages: list, model: str, system: str | None, tools: list[Tool] 
 
 
 def llm_call(messages: list[Message],
-             model: str,
+             model: ModelConfig,
              system: str | None = None,
              tools: list[Tool] | None = None,
              tool_choice: dict | None = None,
@@ -222,7 +237,7 @@ def llm_call(messages: list[Message],
     All API calls are retried with exponential backoff on 5xx errors.
     """
     _print_colored(f"\n[query]\n{_format_messages(messages)}", "\033[2m")
-    _call = _call_anthropic if API_STYLE == "anthropic" else _call_oai
+    _call = _call_anthropic if model.api_style == "anthropic" else _call_oai
 
     if tools:
         tool_map = {t.name: t for t in tools}
@@ -327,6 +342,13 @@ class _EditHandler:
             Path("train.py").write_text(self._undo_stack.pop())
             return "Undo applied."
         return f"Error: unknown command {cmd!r}"
+
+
+PROPOSE_IDEA_CONFIG   = ModelConfig(PROPOSE_IDEA_MODEL,   PROPOSE_IDEA_STYLE,   PROPOSE_IDEA_BASE_URL,   PROPOSE_IDEA_API_KEY,   thinking=PROPOSE_IDEA_STYLE   == "anthropic")
+IMPLEMENT_IDEA_CONFIG = ModelConfig(IMPLEMENT_IDEA_MODEL, IMPLEMENT_IDEA_STYLE, IMPLEMENT_IDEA_BASE_URL, IMPLEMENT_IDEA_API_KEY, thinking=IMPLEMENT_IDEA_STYLE == "anthropic")
+DIAGNOSE_CRASH_CONFIG = ModelConfig(DIAGNOSE_CRASH_MODEL, DIAGNOSE_CRASH_STYLE, DIAGNOSE_CRASH_BASE_URL, DIAGNOSE_CRASH_API_KEY, thinking=DIAGNOSE_CRASH_STYLE == "anthropic")
+SHOULD_KEEP_CONFIG    = ModelConfig(SHOULD_KEEP_MODEL,    SHOULD_KEEP_STYLE,    SHOULD_KEEP_BASE_URL,    SHOULD_KEEP_API_KEY,    thinking=SHOULD_KEEP_STYLE    == "anthropic")
+COMMIT_MESSAGE_CONFIG = ModelConfig(COMMIT_MESSAGE_MODEL, COMMIT_MESSAGE_STYLE, COMMIT_MESSAGE_BASE_URL, COMMIT_MESSAGE_API_KEY)
 
 
 EDIT_TOOL = Tool(
