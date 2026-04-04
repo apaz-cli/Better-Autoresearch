@@ -22,3 +22,6 @@ dev/
 # Results file
 results.tsv
 *.log
+
+# nano
+*.swp

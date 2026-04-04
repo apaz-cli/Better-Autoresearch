@@ -375,7 +375,7 @@ def implement_idea(train_py: str, idea: str) -> None:
     makes one or more str_replace edits until it signals end_turn.
     """
     edit_train([{"role": "user", "content": f"""\
-Use str_replace_based_edit_tool to make edits. Implement this change to train.py:
+Use str_replace_based_edit_tool to make edits. The file path is train.py (not repo/train.py). Implement this change to train.py:
 
 {idea}
 
@@ -412,7 +412,7 @@ Diff introduced by this experiment (original → crashed train.py):
 Full crashed train.py:
 {crashed_train_py}
 
-If this is a simple fixable bug, use str_replace_based_edit_tool to fix train.py.
+If this is a simple fixable bug, use str_replace_based_edit_tool to fix train.py (file path is train.py, not repo/train.py).
 If the idea is fundamentally broken (OOM with no easy fix, etc.), do NOT use the tool \
 — just reply with GIVE_UP: <reason>"""}])
     m = re.search(r"GIVE_UP\s*:\s*(.+)", text, re.IGNORECASE)
