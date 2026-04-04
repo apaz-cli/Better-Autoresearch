@@ -34,6 +34,7 @@ RESULTS_FILE = "results.tsv"
 TRAIN_TIMEOUT = 660
 MAX_CRASH_FIXES = 2
 MAX_AGENT_TURNS = 20
+EXPERIMENT_HOURS = 2
 LLM_KEEP_DISCARD = False  # if True, ask the LLM for keep/discard decisions; otherwise use raw val_bpb improvement
 
 SYSTEM_PROMPT = """\
@@ -586,6 +587,8 @@ def main() -> None:
     # Switch to a new (or old) branch to experiment on
     change_branch(BRANCH)
 
+    end_time = time.time() + EXPERIMENT_HOURS * 3600 if EXPERIMENT_HOURS is not None else float("inf")
+
     # Read or create results file
     if not Path(RESULTS_FILE).exists():
         Path(RESULTS_FILE).write_text("commit\tval_bpb\tmemory_gb\tstatus\tdescription\n")
@@ -605,10 +608,10 @@ def main() -> None:
         log_result(commit, best, memory_gb, "keep", "baseline")
         print_log(f"[keep] Baseline: {best:.6f}")
     else:
-        print_log(f"Starting. Best val_bpb so far: {best:.6f}")
+        print_log(f"Starting. Best val_bpb so far: {best:.6f}. Time limit: {EXPERIMENT_HOURS:.1f}h")
 
     # Autoresearch loop
-    while True:
+    while time.time() < end_time:
         # Grab current state
         baseline = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
         train_py = Path("train.py").read_text()
