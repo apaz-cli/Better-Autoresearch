@@ -43,8 +43,9 @@ Simplicity criterion: all else equal, prefer simpler code. A tiny gain that \
 adds ugly complexity is not worth it. Removing code and getting equal or \
 better results is a great outcome.
 
-VRAM is a soft constraint. Some increase is acceptable for meaningful val_bpb \
-gains, but it should not blow up dramatically.\
+VRAM is a constraint. Some increase is acceptable for meaningful val_bpb \
+gains, but it should not blow up dramatically. Specifically, peak memory usage must stay \
+below 80 GB.\
 """
 
 ###########
