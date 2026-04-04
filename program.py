@@ -140,8 +140,6 @@ def main() -> None:
     # Switch to a new (or old) branch to experiment on
     change_branch(BRANCH)
 
-    end_time = time.time() + EXPERIMENT_HOURS * 3600 if EXPERIMENT_HOURS is not None else float("inf")
-
     # Read or create results file
     if not Path(RESULTS_FILE).exists():
         Path(RESULTS_FILE).write_text("commit\tval_bpb\tmemory_gb\tstatus\tdescription\n")
@@ -149,6 +147,7 @@ def main() -> None:
     best = min(kept, default=float("inf"))
 
     # Run baseline before any experimentation
+    end_time = time.time() + EXPERIMENT_HOURS * 3600 if EXPERIMENT_HOURS is not None else float("inf")
     if best == float("inf"):
         print_log("No results yet. Running baseline (unmodified train.py)...")
         commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
