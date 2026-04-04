@@ -255,7 +255,7 @@ def llm_call(messages: list[MessageParam], model: str, system: str | None = None
                 return stream.get_final_text()
         text = _with_backoff(_stream)
 
-    print_log(f"[{model}] {text[:120].replace(chr(10), ' ')}")
+    print_log(f"[{model}] {text}")
     return text
 
 
@@ -432,7 +432,7 @@ A simplification that breaks even on val_bpb is worth keeping."""}],
     )
     justification = result.get("justification", "")
     decision = result["decision"]
-    print_log(f"[judge] {justification[:120].replace(chr(10), ' ')}")
+    print_log(f"[judge] {justification}")
     return decision == "keep"
 
 
