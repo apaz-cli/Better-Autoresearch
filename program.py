@@ -84,7 +84,7 @@ def _format_messages(messages: list[MessageParam]) -> str:
             parts.append(content)
         elif isinstance(content, list):
             for block in content:
-                if isinstance(block, dict) and block.get("type") == "text":
+                if isinstance(block, dict) and block["type"] == "text":
                     parts.append(block["text"])
     return "\n\n".join(parts)
 
@@ -232,7 +232,10 @@ def llm_call(messages: list[MessageParam], model: str, system: str | None = None
 
         turn = 0
         while True:
-            response = _with_backoff(lambda: client.messages.create(**kwargs))
+            def _create(**kw):
+                with client.messages.stream(**kw) as stream:
+                    return stream.get_final_message()
+            response = _with_backoff(lambda: _create(**kwargs))
             text = "".join(b.text for b in response.content if b.type == "text")
 
             if response.stop_reason == "end_turn":
