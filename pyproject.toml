@@ -5,7 +5,6 @@ description = "Autonomous pretraining research swarm"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "anthropic>=0.40.0",
     "apache-tvm-ffi",
     "einops>=0.8.0",
     "nvidia-cutlass-dsl",
