@@ -56,7 +56,8 @@ game: model architecture, optimizer, hyperparameters, batch size, etc.
 
 What is the single most promising change to try next? Think step by step \
 about what's likely to improve val_bpb given the results so far. \
-Describe your plan in a short paragraph — no code yet.
+Describe your plan in a short paragraph — no code yet. \
+Be sure to only propose one idea, and include all information that would be necessary to implement it.
 
 Experiment history (TSV):
 {results}
