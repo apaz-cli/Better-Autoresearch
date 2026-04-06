@@ -209,6 +209,11 @@ def main() -> None:
 
         # Keep or discard the commit based on results
         val_bpb, memory_gb = result
+        if memory_gb > 80:
+            print_log(f"[discard] {val_bpb:.6f} exceeds 80 GB VRAM limit ({memory_gb:.1f} GB)")
+            subprocess.run(["git", "reset", "--hard", baseline], check=True)
+            log_result(commit, val_bpb, memory_gb, "discard", description)
+            continue
         if LLM_KEEP_DISCARD:
             print_log("[judge] Asking LLM whether to keep...")
             keep = should_keep(idea, train_py, Path("train.py").read_text(), val_bpb, memory_gb, best, results)
